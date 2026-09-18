@@ -1,0 +1,22 @@
+# VIRĀM — local development infrastructure.
+# Backend: apps/api (FastAPI). Frontend: apps/web (Next.js, future phase).
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: viram-db
+    environment:
+      POSTGRES_DB: viram
+      POSTGRES_USER: viram
+      POSTGRES_PASSWORD: viram
+    ports:
+      - "5432:5432"
+    volumes:
+      - viram_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U viram -d viram"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  viram_pgdata:

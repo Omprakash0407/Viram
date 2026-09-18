@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@theme {
+  /* VIRĀM palette — warm cream base, deep forest green accent */
+  --color-cream: #f4f0e8;
+  --color-cream-dark: #e9e2d4;
+  --color-forest: #1e3a2f;
+  --color-forest-dark: #152820;
+  --color-ink: #1d2620;
+
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-jakarta), system-ui, -apple-system, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
