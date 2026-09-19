@@ -25,12 +25,14 @@ export function Step2Itinerary({
   trip,
   recommendations,
   runId,
+  onBack,
   onProceedToBookings,
   onTripUpdated,
 }: {
   trip: TripDetail;
   recommendations: RecommendationUI[];
   runId: string | null;
+  onBack: () => void;
   onProceedToBookings: () => void;
   onTripUpdated?: (trip: TripDetail) => void;
 }) {
@@ -276,8 +278,8 @@ export function Step2Itinerary({
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <SecondaryButton type="button" onClick={() => window.history.back()}>
-          Back
+        <SecondaryButton type="button" onClick={onBack}>
+          ← Back to Preferences
         </SecondaryButton>
         <PrimaryButton type="button" onClick={onProceedToBookings} disabled={!hasItinerary}>
           Proceed to Bookings →

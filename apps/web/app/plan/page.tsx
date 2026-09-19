@@ -65,6 +65,7 @@ export default function PlanTripPage() {
                   trip={trip}
                   recommendations={recs}
                   runId={runId}
+                  onBack={() => setStep(1)}
                   onProceedToBookings={() => setStep(3)}
                   onTripUpdated={setTrip}
                 />
