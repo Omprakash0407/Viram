@@ -80,12 +80,22 @@ export function Step2Itinerary({
     setError(null);
     setBusy(true);
     try {
-      if (runId) {
+      if (runId && recommendations.length > 0) {
         const itemIds = recommendations.filter((r) => r.id).map((r) => r.id as string);
         await tripsApi.accept(trip.id, runId, itemIds);
         await tripsApi.generateItinerary(trip.id, runId);
       } else {
-        await tripsApi.generateItinerary(trip.id, null);
+        // Empty/absent recommendation run: re-run the engine (it falls back to
+        // the city's best places when the moods match nothing), accept all,
+        // then generate. A truly place-less city yields an empty skeleton the
+        // traveller can fill with custom items.
+        const rec = await tripsApi.recommendations(trip.id, true);
+        if (rec.run_id && rec.items.length > 0) {
+          await tripsApi.accept(trip.id, rec.run_id, []); // empty list = accept all
+          await tripsApi.generateItinerary(trip.id, rec.run_id);
+        } else {
+          await tripsApi.generateItinerary(trip.id, null);
+        }
       }
       const fresh = await tripsApi.detail(trip.id);
       setDetail(fresh);
@@ -173,7 +183,12 @@ export function Step2Itinerary({
               );
             })}
             {recsForList.length === 0 && (
-              <li className="text-sm text-ink/50">No recommendations yet.</li>
+              <li className="rounded-lg bg-cream p-4 text-sm text-ink/60 ring-1 ring-ink/5">
+                We couldn&apos;t match your interests to catalogued places in{" "}
+                {detail.city?.name ?? "this city"} yet. Generating the itinerary will fill your
+                days with the city&apos;s best places instead — or go back and pick a different
+                combination of interests.
+              </li>
             )}
           </ul>
           <div className="mt-4">
@@ -182,6 +197,8 @@ export function Step2Itinerary({
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Building days…
                 </span>
+              ) : recsForList.length === 0 ? (
+                "Generate Itinerary from the city's best places →"
               ) : (
                 "Generate Itinerary →"
               )}

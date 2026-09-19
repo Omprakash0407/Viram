@@ -69,31 +69,48 @@ class RuleBasedRecommendationEngine:
             .limit(200)
         )
         places = (await db.scalars(stmt)).all()
+        mood_matched = True
+        if not places and moods:
+            # Graceful degradation: the selected moods have no category matches
+            # in this city (e.g. CITY_LIFE in a temple town with no 'fun' or
+            # 'markets' places). An empty plan dead-ends the wizard, so fall
+            # back to the city's best places and label the run honestly.
+            mood_matched = False
+            fallback = (
+                select(Place)
+                .where(Place.city_id == city_id, Place.status == "ACTIVE")
+                .limit(200)
+            )
+            places = (await db.scalars(fallback)).all()
         if not places:
-            return EngineResult(self.ENGINE_NAME, self.ENGINE_VERSION, {"city_id": str(city_id), "moods": moods, "budget_tier": budget_tier, "days": days}, [])
+            return EngineResult(self.ENGINE_NAME, self.ENGINE_VERSION, {"city_id": str(city_id), "moods": moods, "budget_tier": budget_tier, "days": days, "mood_matched": False}, [])
 
-        scored = [(p, self._score(p, category_slugs)) for p in places]
+        scored = [(p, self._score(p, category_slugs, mood_matched)) for p in places]
         scored.sort(key=lambda pair: (-pair[1], pair[0].name))
-        items = self._to_items(scored, category_slugs)
+        items = self._to_items(scored, category_slugs, mood_matched)
         snapshot = {
             "city_id": str(city_id),
             "moods": moods,
             "budget_tier": budget_tier,
             "days": days,
             "category_slugs": category_slugs,
+            "mood_matched": mood_matched,
         }
         return EngineResult(self.ENGINE_NAME, self.ENGINE_VERSION, snapshot, items)
 
-    def _score(self, place: Place, category_slugs: list[str]) -> Decimal:
+    def _score(self, place: Place, category_slugs: list[str], mood_matched: bool = True) -> Decimal:
         rating = float(place.rating_avg) if place.rating_avg is not None else 3.0
         popularity = (float(place.popularity_score) / 100.0) if place.popularity_score is not None else 0.5
-        category_match = 1.0  # query already filters to mood categories
+        # Full match when the mood filter produced candidates; fallback picks
+        # score lower on the interest term (0.6) so true mood matches, when any
+        # exist, always outrank them.
+        category_match = 1.0 if mood_matched else 0.6
         lesser_bonus = 0.15 if place.classification == "LESSER_KNOWN" else 0.0
         raw = 3.0 * category_match + 2.0 * rating + 1.5 * popularity + lesser_bonus
         return Decimal(str(raw)).quantize(Decimal("0.01"))
 
     def _to_items(
-        self, scored: list[tuple[Place, Decimal]], category_slugs: list[str]
+        self, scored: list[tuple[Place, Decimal]], category_slugs: list[str], mood_matched: bool = True
     ) -> list[EngineItem]:
         """Rank scored places, enforce the lesser-known share, and write a
         human-readable explanation for each item (design doc §13)."""
@@ -119,7 +136,11 @@ class RuleBasedRecommendationEngine:
                 note = place.lesser_known_note or "a local hidden gem"
                 explanation = f"Hidden gem: {note}"
             else:
-                bits = ["Matches your interests"]
+                bits = [
+                    "Closest matches for your interests"
+                    if not mood_matched
+                    else "Matches your interests"
+                ]
                 if place.rating_avg is not None:
                     bits.append(f"{place.rating_avg} rating")
                 if place.popularity_score is not None:
