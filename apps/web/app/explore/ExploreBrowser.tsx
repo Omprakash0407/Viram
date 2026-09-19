@@ -11,20 +11,22 @@ const PLACE_COVER: Record<string, string> = {
 };
 
 /**
- * The Explore grid: city filter chips + place cards. Shared by the live index
- * (query-param filter) and the export-only /explore/city/[city] route (frozen
- * filter links for GitHub Pages, where query params can't be navigated to).
+ * The Explore grid: city filter chips + place cards. Shared by the state page
+ * (all of the state's places) and the city page (one city, filter locked to
+ * that city).
  */
 export default function ExploreBrowser({
   cities,
   places,
   selectedCitySlug,
-  isExport,
+  stateName = "Odisha",
+  stateSlug = "odisha",
 }: {
   cities: CityRow[];
   places: PlaceRow[];
   selectedCitySlug: string | null;
-  isExport: boolean;
+  stateName?: string;
+  stateSlug?: string;
 }) {
   const cityById = new Map(cities.map((c) => [c.id, c]));
   const sorted = [...places].sort(
@@ -35,13 +37,14 @@ export default function ExploreBrowser({
   const selectedCity =
     selectedCitySlug != null ? cities.find((c) => c.slug === selectedCitySlug) ?? null : null;
   const visible = selectedCity ? sorted.filter((p) => p.city_id === selectedCity.id) : sorted;
-  const cityHref = (slug: string) =>
-    isExport ? `/explore/city/${slug}` : `/explore?city=${slug}`;
+  const cityHref = (slug: string) => `/explore/state/${stateSlug}/city/${slug}`;
 
   return (
     <>
       <header className="mb-10">
-        <p className="text-xs font-semibold tracking-[0.2em] text-ink/50">EXPLORE ODISHA</p>
+        <p className="text-xs font-semibold tracking-[0.2em] text-ink/50">
+          {selectedCity ? selectedCity.name.toUpperCase() : `EXPLORE ${stateName.toUpperCase()}`}
+        </p>
         <h1 className="mt-2 font-display text-4xl font-semibold text-ink sm:text-5xl">
           Places worth the pause.
         </h1>
@@ -117,7 +120,7 @@ export default function ExploreBrowser({
                   <h2 className="font-display text-lg font-semibold text-ink">{p.name}</h2>
                   <p className="mt-1 flex items-center gap-1.5 text-sm text-ink/60">
                     <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-                    {city ? `${city.name}, Odisha` : "Odisha"}
+                    {city ? `${city.name}, ${stateName}` : stateName}
                   </p>
                   <p className="mt-2 line-clamp-2 text-sm text-ink/70">
                     {p.lesser_known_note ?? p.description}

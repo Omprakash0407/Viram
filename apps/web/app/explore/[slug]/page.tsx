@@ -24,6 +24,14 @@ import Footer from "@/app/components/Footer";
 import PlaceImage from "../PlaceImage";
 
 /**
+ * ISR: prerendered/cached and revalidated every 60s — place details change
+ * only via seeds/admin, so a minute of staleness is fine in live mode. Static
+ * export prerenders once at build time. (A no-store fetch here crashes the
+ * SSG route with DYNAMIC_SERVER_USAGE at runtime.)
+ */
+export const revalidate = 60;
+
+/**
  * Export mode: prerender every place at build time (generateStaticParams).
  * Live mode: rendered per request (no-store fetch; place data is edited via
  * seeds/admin).
@@ -85,9 +93,9 @@ export default async function PlaceDetailPage({
           <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap items-center gap-1 text-sm text-white/85">
             <Link href="/explore" className="hover:underline">Explore</Link>
             <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>{place.state.name}</span>
+            <Link href={`/explore/state/${place.state.slug}`} className="hover:underline">{place.state.name}</Link>
             <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>{place.city.name}</span>
+            <Link href={`/explore/state/${place.state.slug}/city/${place.city.slug}`} className="hover:underline">{place.city.name}</Link>
             <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
             <span className="text-white">{place.name}</span>
           </nav>

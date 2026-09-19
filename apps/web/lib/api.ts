@@ -12,14 +12,18 @@ export const API_SERVER_BASE =
   "http://127.0.0.1:8000/api/v1";
 
 /**
- * Server-component fetch. Live mode: no-store, so editorial seed edits show up
- * immediately. Export mode: force-cache — static prerendering forbids no-store,
- * and the build-time snapshot is exactly what the exported site should serve.
+ * Server-component fetch. Live mode: ISR cache (60s revalidate) — editorial
+ * data changes only via seeds/admin, and a no-store fetch crashes static-
+ * classified routes (DYNAMIC_SERVER_USAGE). Export mode: force-cache — the
+ * build-time snapshot is exactly what the exported site should serve.
  */
 export async function serverApi<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_SERVER_BASE}${path}`, {
-    cache: process.env.STATIC_EXPORT_BASE_PATH ? "force-cache" : "no-store",
-  });
+  const res = await fetch(
+    `${API_SERVER_BASE}${path}`,
+    process.env.STATIC_EXPORT_BASE_PATH
+      ? { cache: "force-cache" }
+      : { next: { revalidate: 60 } },
+  );
   if (!res.ok) {
     throw Object.assign(new Error(`Request failed (${res.status})`), { status: res.status });
   }
@@ -208,6 +212,7 @@ export async function logout(): Promise<void> {
 // --- geo ----------------------------------------------------------------------
 
 export type StateRow = { id: string; name: string; slug: string };
+
 export type CityRow = {
   id: string;
   name: string;

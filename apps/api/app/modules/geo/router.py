@@ -23,10 +23,10 @@ async def list_cities(
     state_id: uuid.UUID | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    stmt = select(City).order_by(City.name)
+    stmt = select(City, State.slug).join(State, City.state_id == State.id).order_by(City.name)
     if state_id is not None:
         stmt = stmt.where(City.state_id == state_id)
-    rows = (await db.scalars(stmt)).all()
+    rows = (await db.execute(stmt)).all()
     return {
         "items": [
             {
@@ -34,10 +34,11 @@ async def list_cities(
                 "name": c.name,
                 "slug": c.slug,
                 "state_id": str(c.state_id),
+                "state_slug": state_slug,
                 "latitude": float(c.latitude),
                 "longitude": float(c.longitude),
             }
-            for c in rows
+            for c, state_slug in rows
         ]
     }
 
