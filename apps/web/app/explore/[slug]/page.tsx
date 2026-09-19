@@ -23,7 +23,17 @@ import Header from "@/app/components/Header";
 import Footer from "@/app/components/Footer";
 import PlaceImage from "../PlaceImage";
 
-export const dynamic = "force-dynamic";
+/**
+ * Export mode: prerender every place at build time (generateStaticParams).
+ * Live mode: rendered per request (no-store fetch; place data is edited via
+ * seeds/admin).
+ */
+export async function generateStaticParams() {
+  if (!process.env.STATIC_EXPORT_BASE_PATH) return [];
+  const { serverApi } = await import("@/lib/api");
+  const { items } = await serverApi<{ items: { slug: string }[] }>("/geo/places");
+  return items.map((p) => ({ slug: p.slug }));
+}
 
 const EXPERIENCE_ICONS = [Ship, Bird, Camera, Palette, Waves, Mountain, Landmark, UtensilsCrossed, Sun];
 

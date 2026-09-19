@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
+    "build:export": "cross-env STATIC_EXPORT_BASE_PATH=/Viram NEXT_PUBLIC_STATIC_DEMO=1 NEXT_PUBLIC_BASE_PATH=/Viram next build --turbopack",
     "start": "next start",
     "lint": "eslint"
   },
@@ -20,6 +21,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^7.0.3",
     "eslint": "^9",
     "eslint-config-next": "15.5.25",
     "tailwindcss": "^4",

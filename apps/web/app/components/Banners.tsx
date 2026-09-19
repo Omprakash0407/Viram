@@ -20,7 +20,7 @@ export default function Banners() {
             Traditions, festivals, food, crafts and stories from the heart of
             every destination.
           </p>
-          <Link href="/culture"
+          <Link href="/explore"
             className="mt-6 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-medium text-forest transition-colors hover:bg-cream"
           >
             Explore Culture <ArrowRight className="h-4 w-4" aria-hidden="true" />

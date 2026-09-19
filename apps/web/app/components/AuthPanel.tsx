@@ -71,6 +71,13 @@ export function AuthPanel({ purpose }: { purpose: string }) {
       </h1>
       <p className="mt-2 text-sm text-ink/70">{purpose}</p>
 
+      {process.env.NEXT_PUBLIC_STATIC_DEMO === "1" && (
+        <p role="note" className="mt-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">
+          This is a static preview — accounts and bookings need the live
+          VIRĀM backend. Browse the Explore pages to see the full experience.
+        </p>
+      )}
+
       <form onSubmit={submit} className="mt-6 space-y-4">
         {mode === "register" && (
           <div>

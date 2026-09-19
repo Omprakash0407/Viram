@@ -42,7 +42,7 @@ export default function PlaceImage({
   return (
     // eslint-disable-next-line @next/next/no-img-element -- dynamic optional asset; optimizer 404s are handled via onError
     <img
-      src={`/images/places/${slug}/${kind}.jpg`}
+      src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/images/places/${slug}/${kind}.jpg`}
       alt={alt}
       sizes={sizes}
       loading={priority ? "eager" : "lazy"}

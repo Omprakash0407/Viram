@@ -1,0 +1,106 @@
+name: Deploy static demo to GitHub Pages
+
+# GitHub Pages serves files only — no FastAPI, no PostgreSQL. This workflow
+# therefore BAKES A REAL SNAPSHOT: it boots the actual API against a real
+# Postgres, applies migrations, seeds the Odisha editorial demo data, and
+# prerenders the frontend at build time (npm run build:export). The exported
+# demo shows Explore with genuine data; account/booking flows display an
+# honest "needs the live backend" note instead of pretending to work.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Start PostgreSQL
+        run: |
+          docker run -d --name viram-db \
+            -e POSTGRES_USER=viram -e POSTGRES_PASSWORD=viram -e POSTGRES_DB=viram \
+            -p 5432:5432 postgres:16
+          for i in $(seq 1 30); do
+            docker exec viram-db pg_isready -U viram && break
+            sleep 2
+          done
+
+      - name: Install API dependencies
+        working-directory: apps/api
+        run: pip install -r requirements/base.txt
+
+      - name: Apply migrations
+        working-directory: apps/api
+        env:
+          VIRAM_DATABASE_URL: postgresql+asyncpg://viram:viram@localhost:5432/viram
+        run: alembic upgrade head
+
+      - name: Seed demo data
+        working-directory: apps/api
+        env:
+          VIRAM_DATABASE_URL: postgresql+asyncpg://viram:viram@localhost:5432/viram
+        run: |
+          python -m scripts.seed_odisha
+          python -m scripts.seed_commerce
+          python -m scripts.seed_place_details
+
+      - name: Start API
+        working-directory: apps/api
+        env:
+          VIRAM_DATABASE_URL: postgresql+asyncpg://viram:viram@localhost:5432/viram
+        run: |
+          nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > api.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/api/v1/health && break
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8000/api/v1/geo/places > /dev/null
+
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Prerender static export
+        working-directory: apps/web
+        env:
+          VIRAM_EXPORT_API_URL: http://127.0.0.1:8000/api/v1
+        run: npm run build:export
+
+      - name: Disable Jekyll processing
+        run: touch apps/web/out/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

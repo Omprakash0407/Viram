@@ -3,13 +3,23 @@
 export const API_BASE = "/api/v1";
 
 /** Base for server-component (RSC) fetches: the browser rewrite proxy is
- *  browser-only, so server code calls the API directly. */
+ *  browser-only, so server code calls the API directly. Static export builds
+ *  (GitHub Pages) override it with VIRAM_EXPORT_API_URL for build-time
+ *  prerendering. */
 export const API_SERVER_BASE =
-  process.env.API_INTERNAL_URL ?? "http://127.0.0.1:8000/api/v1";
+  process.env.VIRAM_EXPORT_API_URL ??
+  process.env.API_INTERNAL_URL ??
+  "http://127.0.0.1:8000/api/v1";
 
-/** Server-component fetch (no-store so editorial seed edits show up live). */
+/**
+ * Server-component fetch. Live mode: no-store, so editorial seed edits show up
+ * immediately. Export mode: force-cache — static prerendering forbids no-store,
+ * and the build-time snapshot is exactly what the exported site should serve.
+ */
 export async function serverApi<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_SERVER_BASE}${path}`, { cache: "no-store" });
+  const res = await fetch(`${API_SERVER_BASE}${path}`, {
+    cache: process.env.STATIC_EXPORT_BASE_PATH ? "force-cache" : "no-store",
+  });
   if (!res.ok) {
     throw Object.assign(new Error(`Request failed (${res.status})`), { status: res.status });
   }

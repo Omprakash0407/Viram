@@ -51,7 +51,7 @@ export default function Hero({ image }: HeroProps) {
 
         {/* Explore CTA */}
         <div className="mt-6">
-          <Link href="/destinations"
+          <Link href="/explore"
             className="inline-flex items-center gap-2 rounded-full bg-forest px-7 py-4 font-medium text-white transition-colors hover:bg-forest-dark"
           >
             <Compass className="h-5 w-5" aria-hidden="true" />

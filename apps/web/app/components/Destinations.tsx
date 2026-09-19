@@ -8,7 +8,7 @@ export default function Destinations() {
         <h2 className="font-display text-3xl font-semibold text-ink md:text-4xl">
           Explore by Destination
         </h2>
-        <Link href="/destinations"
+        <Link href="/explore"
           className="text-sm font-medium text-ink/70 transition-colors hover:text-ink"
         >
           View All &rarr;
@@ -19,7 +19,7 @@ export default function Destinations() {
         {destinations.map((d) => (
           <Link
             key={d.name}
-            href={`/destinations/${slugify(d.name)}`}
+            href={`/explore?city=${slugify(d.name)}`}
             className="group relative overflow-hidden rounded-2xl shadow-sm transition-transform duration-200 hover:-translate-y-1"
           >
             <div className="aspect-[3/4] w-full bg-gradient-to-b from-cream-dark to-forest-dark" />
