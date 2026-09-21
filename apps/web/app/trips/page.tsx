@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -14,6 +15,14 @@ import {
 } from "lucide-react";
 import Header from "@/app/components/Header";
 import Footer from "@/app/components/Footer";
+import LocationSharing from "./LocationSharing";
+import SafeTravelSos from "./SafeTravelSos";
+
+// Leaflet touches `window` at import time — load the map browser-only.
+const CompanionsMap = dynamic(() => import("./CompanionsMap"), {
+  ssr: false,
+  loading: () => <p className="mt-2 text-sm text-ink/50">Loading live map…</p>,
+});
 import {
   commerceApi,
   companionsApi,
@@ -36,7 +45,6 @@ type Weather = {
   city: { name: string };
 };
 
-type EmergencyContact = { id: string; scope: string; label: string; phone: string };
 
 const STATUS_STYLES: Record<string, string> = {
   PLANNING: "bg-amber-100 text-amber-800",
@@ -59,7 +67,6 @@ export default function TripsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [weather, setWeather] = useState<Weather | null>(null);
-  const [contacts, setContacts] = useState<EmergencyContact[] | null>(null);
   const [invitations, setInvitations] = useState<InvitationRow[]>([]);
   const [shared, setShared] = useState<SharedTripRow[]>([]);
   const [companions, setCompanions] = useState<Record<string, CompanionRow[]>>({});
@@ -92,14 +99,12 @@ export default function TripsPage() {
       setDetail(null);
       setBookings([]);
       setWeather(null);
-      setContacts(null);
       return;
     }
     setOpenId(t.id);
     setDetail(null);
     setBookings([]);
     setWeather(null);
-    setContacts(null);
     setDetailLoading(true);
     try {
       const d = await tripsApi.detail(t.id);
@@ -117,13 +122,6 @@ export default function TripsPage() {
           `/api/v1/intelligence/weather?city_id=${d.city?.id ?? ""}`,
         );
         if (res.ok) setWeather(await res.json());
-      } catch {}
-      try {
-        const res = await fetch(`/api/v1/emergency/contacts?city_id=${d.city?.id ?? ""}`);
-        if (res.ok) {
-          const j = await res.json();
-          setContacts(j.items as EmergencyContact[]);
-        }
       } catch {}
     } catch {
       setError("Could not load that trip.");
@@ -325,6 +323,19 @@ export default function TripsPage() {
                       </p>
                     ) : detail ? (
                       <div className="space-y-6">
+                        {/* Live location — opt-in sharing + companions map (beta) */}
+                        <section aria-label="Live location">
+                          <LocationSharing tripId={t.id} />
+                          {detail.viewer_role === "HEAD" ? (
+                            <CompanionsMap tripId={t.id} />
+                          ) : null}
+                        </section>
+
+                        {/* Safe travel SOS — contacts + nearest hospital route */}
+                        <section aria-label="Safe travel SOS">
+                          <SafeTravelSos tripId={t.id} />
+                        </section>
+
                         {/* Itinerary */}
                         <section>
                           <h3 className="font-display text-base font-semibold text-ink">Itinerary</h3>
@@ -472,28 +483,7 @@ export default function TripsPage() {
                           </section>
                         )}
 
-                        {/* Emergency contacts */}
-                        {contacts && contacts.length > 0 && (
-                          <section>
-                            <h3 className="font-display text-base font-semibold text-ink">
-                              Emergency contacts
-                            </h3>
-                            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-                              {contacts.map((c) => (
-                                <li key={c.id} className="flex items-center justify-between rounded-xl bg-white p-3 ring-1 ring-ink/5">
-                                  <span className="text-sm text-ink/80">{c.label}</span>
-                                  <a
-                                    href={`tel:${c.phone}`}
-                                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-forest"
-                                  >
-                                    <Phone className="h-3.5 w-3.5" aria-hidden="true" />
-                                    {c.phone}
-                                  </a>
-                                </li>
-                              ))}
-                            </ul>
-                          </section>
-                        )}
+                        {/* Emergency contacts now live in the Safe travel SOS panel above */}
                       </div>
                     ) : (
                       <p className="text-sm text-red-700">Could not load this trip.</p>

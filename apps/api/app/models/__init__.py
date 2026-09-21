@@ -22,6 +22,14 @@ from app.models.intelligence import (
     RouteSnapshot,
     WeatherSnapshot,
 )
+from app.models.planning import (
+    CompanionLocationShare,
+    Itinerary,
+    ItineraryDay,
+    ItineraryItem,
+    Trip,
+    TripCompanion,
+)
 from app.models.providers import BusinessProfile, IdentityVerification
 from app.models.reviews import PlaceReview
 from app.models.user import AccountRole
@@ -34,7 +42,13 @@ from app.models.user import UserSession
 __all__ = [
     "AccountRole",
     "BusinessProfile",
+    "CompanionLocationShare",
     "IdentityVerification",
+    "Itinerary",
+    "ItineraryDay",
+    "ItineraryItem",
+    "Trip",
+    "TripCompanion",
     "AccountStatus",
     "AdminAuditLog",
     "CommunitySuggestion",

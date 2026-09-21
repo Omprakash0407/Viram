@@ -509,6 +509,68 @@ export const companionsApi = {
   shared: () => api<{ items: SharedTripRow[] }>("/companions/shared"),
 };
 
+// --- live location (opt-in, trip-scoped; privacy contract in location_service) ---
+
+export type CompanionLocation = {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  latitude: number;
+  longitude: number;
+  accuracy_m: number | null;
+  updated_at: string;
+};
+
+export type SosFacility = {
+  id: string;
+  name: string;
+  kind: string;
+  address: string | null;
+  phone: string | null;
+  is_24x7: boolean;
+  latitude: number;
+  longitude: number;
+};
+
+export type SosData = {
+  contacts: { scope: string; label: string; phone: string; description: string | null }[];
+  facilities: SosFacility[];
+  route: {
+    to: SosFacility;
+    straight_line_km: number;
+    distance_km: number | null;
+    duration_min: number | null;
+    provider: string | null;
+    retrieved_at: string | null;
+    unavailable?: boolean;
+  } | null;
+  reference: { from: string; latitude: number; longitude: number; updated_at: string } | null;
+};
+
+export const sosApi = {
+  get: (tripId: string) => api<SosData>(`/trips/${tripId}/sos`),
+};
+
+export const locationApi = {
+  share: (tripId: string, lat: number, lng: number, accuracyM?: number) =>
+    api<{ sharing: true; purge_date: string }>(`/trips/${tripId}/location`, {
+      method: "PUT",
+      body: JSON.stringify({
+        latitude: lat,
+        longitude: lng,
+        ...(accuracyM != null ? { accuracy_m: Math.round(accuracyM) } : {}),
+      }),
+    }),
+  stop: (tripId: string) =>
+    api<{ sharing: false; removed: boolean }>(`/trips/${tripId}/location`, {
+      method: "DELETE",
+    }),
+  companions: (tripId: string) =>
+    api<{ sharing: boolean; items: CompanionLocation[]; server_time: string }>(
+      `/trips/${tripId}/location`,
+    ),
+};
+
 export const tripsApi = {
   create: (payload: TripCreatePayload) =>
     api<{ id: string; status: string; starts_on: string; ends_on: string }>(

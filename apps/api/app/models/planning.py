@@ -207,6 +207,46 @@ class TripCompanion(Base):
     companion: Mapped["User"] = relationship("User", foreign_keys=[companion_user_id])
 
 
+class CompanionLocationShare(Base):
+    """Opt-in live location heartbeat for one traveller on one trip.
+
+    Phase 8b addendum. A row EXISTS only while the traveller is actively
+    sharing on that trip; deleting it stops sharing instantly (there is no
+    paused state persisted — pausing = delete). purge_date (trip end + 1 day)
+    bounds retention: GPS points are ephemeral, never historical data.
+    Readable only by the trip head + ACTIVE companions of the same trip.
+    """
+
+    __tablename__ = "companion_location_shares"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    trip_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    latitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
+    longitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
+    accuracy_m: Mapped[int | None] = mapped_column()
+    purge_date: Mapped[date] = mapped_column(nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint("latitude BETWEEN -90 AND 90", name="ck_location_share_lat"),
+        CheckConstraint("longitude BETWEEN -180 AND 180", name="ck_location_share_lng"),
+        UniqueConstraint("trip_id", "user_id", name="uq_location_share_trip_user"),
+        Index("ix_location_shares_trip", "trip_id"),
+        Index("ix_location_shares_purge", "purge_date"),
+    )
+
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
+
+
 class RecommendationRun(Base):
     __tablename__ = "recommendation_runs"
 
