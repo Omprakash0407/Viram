@@ -28,6 +28,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.geo import City, Place  # noqa: F401
+    from app.models.user import User  # noqa: F401
 
 
 class Trip(Base):
@@ -158,6 +159,52 @@ class ItineraryItem(Base):
 
     day: Mapped["ItineraryDay"] = relationship("ItineraryDay", back_populates="items")
     place: Mapped["Place | None"] = relationship("Place")
+
+
+class TripCompanion(Base):
+    """Travelling-together sharing (Phase 8 addendum).
+
+    The trip head (trips.user_id) invites other accounts to follow the trip.
+    Companions get read-only itinerary access; bookings/payments stay
+    OWNER_ONLY (§24). status lifecycle: INVITED → ACTIVE | DECLINED; the head
+    can remove at any time (REMOVED) and re-invite later (new row allowed by
+    reactivating this one instead).
+    """
+
+    __tablename__ = "trip_companions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    trip_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False
+    )
+    invited_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    companion_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    role: Mapped[str] = mapped_column(String(20), nullable=False, server_default="MEMBER")
+    status: Mapped[str] = mapped_column(String(10), nullable=False, server_default="INVITED")
+    invited_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint("role IN ('HEAD','MEMBER')", name="ck_trip_companions_role"),
+        CheckConstraint(
+            "status IN ('INVITED','ACTIVE','DECLINED','REMOVED')",
+            name="ck_trip_companions_status",
+        ),
+        UniqueConstraint("trip_id", "companion_user_id", name="uq_trip_companions_trip_user"),
+        Index("ix_trip_companions_companion", "companion_user_id", "status"),
+        Index("ix_trip_companions_trip", "trip_id"),
+    )
+
+    trip: Mapped["Trip"] = relationship("Trip")
+    companion: Mapped["User"] = relationship("User", foreign_keys=[companion_user_id])
 
 
 class RecommendationRun(Base):

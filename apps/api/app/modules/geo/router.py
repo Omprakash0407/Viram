@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.models.geo import City, Place, State
+from app.models.geo import City, Place, PlaceCategory, State
 
 router = APIRouter(prefix="/geo", tags=["geo"])
 
@@ -110,12 +110,17 @@ async def list_places(
     classification: str | None = Query(default=None, pattern="^(POPULAR|LESSER_KNOWN)$"),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    stmt = select(Place).where(Place.status == "ACTIVE").order_by(Place.name)
+    stmt = (
+        select(Place, PlaceCategory.slug)
+        .join(PlaceCategory, Place.category_id == PlaceCategory.id)
+        .where(Place.status == "ACTIVE")
+        .order_by(Place.name)
+    )
     if city_id is not None:
         stmt = stmt.where(Place.city_id == city_id)
     if classification is not None:
         stmt = stmt.where(Place.classification == classification)
-    rows = (await db.scalars(stmt)).all()
+    rows = (await db.execute(stmt)).all()
     return {
         "items": [
             {
@@ -124,12 +129,13 @@ async def list_places(
                 "slug": p.slug,
                 "description": p.description,
                 "city_id": str(p.city_id),
+                "category": category_slug,
                 "classification": p.classification,
                 "lesser_known_note": p.lesser_known_note,
                 "rating_avg": float(p.rating_avg) if p.rating_avg else None,
                 "popularity_score": float(p.popularity_score) if p.popularity_score else None,
                 "typical_visit_minutes": p.typical_visit_minutes,
             }
-            for p in rows
+            for p, category_slug in rows
         ]
     }

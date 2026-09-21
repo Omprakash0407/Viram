@@ -30,6 +30,10 @@ class CustomItemRequest(BaseModel):
     note: str | None = Field(default=None, max_length=500)
 
 
+class ExtendTripRequest(BaseModel):
+    days: int = Field(ge=1, le=30)
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_trip(
     payload: TripCreate,
@@ -187,6 +191,23 @@ async def add_custom_item(
     )
     await db.commit()
     return {"id": str(item.id), "position": item.position, "title": item.custom_title}
+
+
+@router.patch("/{trip_id}/extend")
+async def extend_trip(
+    trip_id: uuid.UUID,
+    payload: ExtendTripRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Chat-driven edit: extend the trip by N days, appending itinerary days."""
+    trip = await service.extend_trip(db, user=user, trip_id=trip_id, days=payload.days)
+    await db.commit()
+    return {
+        "id": str(trip.id),
+        "starts_on": trip.starts_on.isoformat(),
+        "ends_on": trip.ends_on.isoformat(),
+    }
 
 
 @router.delete("/{trip_id}/itinerary/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)

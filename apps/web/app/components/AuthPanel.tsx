@@ -40,7 +40,10 @@ export function AuthPanel({ purpose }: { purpose: string }) {
   useEffect(() => {
     if (justAuthed) {
       void refresh();
-      router.replace("/plan");
+      // Honour ?next= for flows that hand off to sign-in (e.g. the chatbot
+      // carrying an unsent trip draft). Same-app relative paths only.
+      const next = new URLSearchParams(window.location.search).get("next");
+      router.replace(next && next.startsWith("/") && !next.startsWith("//") ? next : "/plan");
     }
   }, [justAuthed, refresh, router]);
 

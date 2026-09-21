@@ -41,6 +41,7 @@ export type SessionUser = {
   display_name: string;
   account_role: string;
   status: string;
+  avatar_url?: string | null;
 };
 
 export function getStoredSession(): { access: string; refresh: string } | null {
@@ -236,6 +237,8 @@ export const geoApi = {
 };
 
 export type PlaceRow = {
+  category?: string;
+  review_count?: number;
   id: string;
   name: string;
   slug: string;
@@ -308,6 +311,33 @@ export const planningApi = {
   budgetTiers: () => publicApi<{ items: BudgetRow[] }>("/planning/budget-tiers"),
 };
 
+// --- reviews (Phase 6) -------------------------------------------------------------
+
+export type ReviewRow = {
+  id: string;
+  rating: number;
+  title: string | null;
+  body: string;
+  status: string;
+  visited_on: string | null;
+  created_at: string;
+  author: { display_name: string };
+};
+
+export const reviewsApi = {
+  list: (placeSlug: string) =>
+    api<{ items: ReviewRow[]; rating_avg: number | null; review_count: number }>(
+      `/places/${encodeURIComponent(placeSlug)}/reviews`,
+    ),
+  create: (placeSlug: string, payload: { rating: number; title?: string; body: string; visited_on?: string }) =>
+    api<{ review: ReviewRow; rating_avg: number | null; review_count: number }>(
+      `/places/${encodeURIComponent(placeSlug)}/reviews`,
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
+  remove: (reviewId: string) =>
+    api<void>(`/places/reviews/${reviewId}`, { method: "DELETE" }),
+};
+
 // --- trips ------------------------------------------------------------------------
 
 export type TripListItem = {
@@ -356,6 +386,7 @@ export type ItineraryDayRow = {
 export type TripDetail = {
   id: string;
   status: string;
+  viewer_role: "HEAD" | "COMPANION";
   city: { id: string; name: string } | null;
   starts_on: string;
   ends_on: string;
@@ -380,14 +411,102 @@ export type PreferencesOut = {
   notes: string | null;
 };
 
+export type ProfileOut = {
+  user_id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  phone: string | null;
+  bio: string | null;
+};
+
 export const usersApi = {
   me: () => api<SessionUser>("/users/me"),
   getPreferences: () => api<PreferencesOut>("/users/me/preferences"),
+  updateProfile: (payload: { avatar_url?: string | null }) =>
+    api<ProfileOut>("/users/me/profile", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
   updatePreferences: (payload: { interests?: string[] }) =>
     api<unknown>("/users/me/preferences", {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
+};
+
+// --- Vira AI (beta) ------------------------------------------------------------
+
+export type AiChatResponse = {
+  reply: string;
+  engine: string;
+  tool_calls: Array<{ name: string; args: Record<string, unknown>; ok: boolean }>;
+  trip_id: string | null;
+  beta: boolean;
+};
+
+export const aiApi = {
+  chat: (message: string, history: Array<{ role: string; text: string }>) =>
+    api<AiChatResponse>("/chat/ai", {
+      method: "POST",
+      body: JSON.stringify({ message, history }),
+    }),
+};
+
+// --- travelling together (trip companions) -----------------------------------
+
+export type CompanionRow = {
+  id: string;
+  companion_user_id: string;
+  name: string;
+  avatar_url: string | null;
+  status: "INVITED" | "ACTIVE" | "DECLINED" | "REMOVED";
+  invited_at: string;
+};
+
+export type InvitationRow = {
+  id: string;
+  trip_id: string;
+  city_id: string | null;
+  starts_on: string | null;
+  ends_on: string | null;
+  invited_by_name: string;
+};
+
+export type SharedTripRow = {
+  trip_id: string;
+  status: string;
+  starts_on: string;
+  ends_on: string;
+  party_size: number;
+  head_name: string;
+};
+
+export const companionsApi = {
+  invite: (tripId: string, email: string) =>
+    api<{ id: string; companion_name: string; status: string }>(
+      `/trips/${tripId}/companions`,
+      {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      },
+    ),
+  list: (tripId: string) =>
+    api<{ items: CompanionRow[] }>(`/trips/${tripId}/companions`),
+  remove: (tripId: string, rowId: string) =>
+    api<void>(`/trips/${tripId}/companions/${rowId}`, { method: "DELETE" }),
+  invitations: () =>
+    api<{ items: InvitationRow[] }>("/companions/invitations"),
+  accept: (rowId: string) =>
+    api<{ id: string; status: string; trip_id: string }>(
+      `/companions/invitations/${rowId}/accept`,
+      { method: "POST" },
+    ),
+  decline: (rowId: string) =>
+    api<{ id: string; status: string; trip_id: string }>(
+      `/companions/invitations/${rowId}/decline`,
+      { method: "POST" },
+    ),
+  shared: () => api<{ items: SharedTripRow[] }>("/companions/shared"),
 };
 
 export const tripsApi = {
@@ -428,6 +547,11 @@ export const tripsApi = {
     ),
   removeItem: (tripId: string, itemId: string) =>
     api<void>(`/trips/${tripId}/itinerary/items/${itemId}`, { method: "DELETE" }),
+  extend: (tripId: string, days: number) =>
+    api<{ id: string; starts_on: string; ends_on: string }>(
+      `/trips/${tripId}/extend`,
+      { method: "PATCH", body: JSON.stringify({ days }) },
+    ),
 };
 
 // --- commerce (Phase 5): hotels, guides, bookings, payments --------------------
@@ -556,6 +680,191 @@ export const commerceApi = {
     api<{ id: string; status: string }>(`/guide-bookings/${bookingId}/cancel`, {
       method: "POST",
       body: JSON.stringify({ reason: "cancelled by traveller" }),
+    }),
+};
+
+// ---------- Phase 7: providers, identity verification, community, admin ----------
+
+export type ProviderStatus = "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
+
+export type GuideProfileRow = {
+  id: string;
+  user_id: string;
+  public_name: string;
+  bio: string | null;
+  languages: string[];
+  expertise: string[];
+  areas_served: string[];
+  city_id: string | null;
+  day_rate_paise: number | null;
+  currency: string;
+  status: ProviderStatus;
+  visibility: string;
+  created_at: string;
+};
+
+export type BusinessProfileRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  state_id: string;
+  city_id: string;
+  place_id: string | null;
+  services: string[];
+  public_phone: string | null;
+  public_email: string | null;
+  public_address: string | null;
+  status: ProviderStatus;
+  visibility: string;
+  created_at: string;
+};
+
+export type BusinessPublicRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  city_id: string;
+  place_id: string | null;
+  services: string[];
+  public_phone: string | null;
+  public_email: string | null;
+  public_address: string | null;
+};
+
+export type IdentityVerificationRow = {
+  id: string;
+  provider: string;
+  id_proof_type: string;
+  status: "PENDING" | "VERIFIED" | "FAILED" | "EXPIRED";
+  requested_at: string;
+  verified_at: string | null;
+  expires_at: string | null;
+};
+
+export type IdentityStatusRow = {
+  identity_verified: boolean;
+  latest: IdentityVerificationRow | null;
+  demo_note: string;
+};
+
+export type AdminProviderRow = {
+  kind: "GUIDE" | "BUSINESS";
+  id: string;
+  user_id: string;
+  owner_email: string | null;
+  owner_identity_verified: boolean;
+  name: string;
+  category: string | null;
+  city_id: string | null;
+  status: ProviderStatus;
+  visibility: string;
+  reviewed_at: string | null;
+  review_note: string | null;
+  created_at: string;
+};
+
+export type CommunitySuggestionRow = {
+  id: string;
+  submitter_name: string;
+  kind: string;
+  title: string;
+  body: string;
+  status: string;
+  admin_note: string | null;
+  created_at: string;
+};
+
+export const providersApi = {
+  myGuide: () => api<GuideProfileRow | null>("/guides/me"),
+  saveGuide: (payload: {
+    public_name: string;
+    bio?: string | null;
+    languages?: string[];
+    expertise?: string[];
+    areas_served?: string[];
+    city_id?: string | null;
+    day_rate_paise?: number | null;
+  }) =>
+    api<GuideProfileRow>("/guides/me", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  createBusiness: (payload: {
+    name: string;
+    description?: string | null;
+    category: string;
+    city_id: string;
+    place_id?: string | null;
+    services?: string[];
+    public_phone?: string | null;
+    public_email?: string | null;
+    public_address?: string | null;
+  }) => api<BusinessProfileRow>("/businesses", { method: "POST", body: JSON.stringify(payload) }),
+  myBusinesses: () => api<BusinessProfileRow[]>("/businesses/mine"),
+  partners: (params?: { city_id?: string; category?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.city_id) q.set("city_id", params.city_id);
+    if (params?.category) q.set("category", params.category);
+    const s = q.toString();
+    return api<{ items: BusinessPublicRow[]; total: number }>(
+      `/partners${s ? `?${s}` : ""}`,
+    );
+  },
+  partner: (id: string) => api<BusinessPublicRow>(`/partners/${id}`),
+  identityInit: () =>
+    api<{ verification: IdentityVerificationRow; consent_url: string; demo_note: string }>(
+      "/identity/verify/init",
+      { method: "POST" },
+    ),
+  identityComplete: (verificationId: string) =>
+    api<{ verification: IdentityVerificationRow; consent_url: string; demo_note: string }>(
+      `/identity/verify/${verificationId}/complete`,
+      { method: "POST" },
+    ),
+  identityStatus: () =>
+    api<IdentityStatusRow>("/identity/verify/me"),
+};
+
+export const adminApi = {
+  providers: () => api<AdminProviderRow[]>("/admin/providers"),
+  reviewProvider: (
+    kind: "guide" | "business",
+    providerId: string,
+    decision: "APPROVED" | "REJECTED" | "SUSPENDED" | "REINSTATE",
+    adminNote?: string,
+  ) =>
+    api<AdminProviderRow>(`/admin/providers/${kind}/${providerId}/review`, {
+      method: "POST",
+      body: JSON.stringify({ decision, admin_note: adminNote ?? null }),
+    }),
+  suggestions: (status?: string) =>
+    api<{ items: CommunitySuggestionRow[] }>(
+      status ? `/admin/suggestions?status=${encodeURIComponent(status)}` : "/admin/suggestions",
+    ),
+  reviewSuggestion: (id: string, decision: "APPROVED" | "REJECTED", adminNote?: string) =>
+    api<CommunitySuggestionRow>(`/admin/suggestions/${id}/review`, {
+      method: "POST",
+      body: JSON.stringify({ decision, admin_note: adminNote ?? null }),
+    }),
+  auditLog: () => api<{ items: Array<Record<string, unknown>> }>("/admin/audit-log"),
+};
+
+export const communityApi = {
+  submit: (payload: {
+    kind: string;
+    title: string;
+    body: string;
+    submitter_name: string;
+    contact?: string | null;
+    city_id?: string | null;
+    place_id?: string | null;
+  }) =>
+    api<{ id: string; status: string }>("/community/suggestions", {
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
 };
 

@@ -385,3 +385,96 @@ both modes green.
 | 15 | Slug-hashed gradients | `explore/gradient.ts` | `h = h·31 + c`, hue, hue+40 |
 | 16 | Session-refresh handshake | `lib/api.ts` | 401 → refresh → retry once |
 | 17 | ISR / export strategy | `lib/api.ts`, route files | `revalidate = 60` / `force-cache` |
+
+---
+
+## 17. Vira AI (beta) — grounded LLM chat engine
+
+**Status: BETA — behind an explicit UI toggle, disabled without a key.**
+Files: `apps/api/app/modules/chat/{gemini_engine,retrieval,tools,router}.py`,
+`apps/web/app/components/ChatAssistant.tsx`.
+
+### 17.1 Architecture (swappable chat engine)
+
+```
+ChatAssistant UI (β toggle)
+      ↓ POST /api/v1/chat/ai  (auth required)
+GeminiChatEngine                     ← replaceable, like RuleBasedRecommendationEngine
+      ├── retrieval.py   grounding context (VERIFIED DATA + MY DATA)
+      ├── Gemini function-calling loop (max 3 rounds)
+      └── tools.py       guarded execution → the SAME service functions the REST API uses
+```
+
+### 17.2 Grounding (anti-hallucination, design rule 8)
+
+Before each turn the engine builds context with **only verified data**:
+
+- `resolve_city`: free-text → canonical `City` row (slug → ilike name → state fallback).
+- `destination_brief`: active places of that city (top by popularity, ≤14), each
+  trimmed to name/category/classification/rating/visit-minutes + curated
+  `details` fields (highlights, best_time, entry_fee). No invented content is
+  possible because the model only sees DB rows.
+- `user_context`: the traveller's own history (design decision: FULL history) —
+  saved interests/pace/budget + last 6 trips with dates, moods, party size and
+  visited place titles. No emails, no payment/contact data (minimization).
+
+The system prompt forbids invention: anything not in VERIFIED DATA / MY DATA
+must be answered with "I don't have verified information on that".
+
+### 17.3 Tool loop (function calling)
+
+Model-proposed tools, executed **only** through guarded services (ownership +
+validation identical to the REST API — the AI can never exceed a signed-in
+user's powers):
+
+| Tool | Executes | Guards |
+|---|---|---|
+| `suggest_trip` | `create_trip` → persisted `RecommendationRun` → `accept_recommendations` → `generate_itinerary` | city must resolve to a verified row; ISO date validation; ≤30 days; mood/budget whitelists; party 1–50 |
+| `get_weather` | `intelligence_service.get_weather_cached` (§13 cache algorithm) | verified city; honest provider-failure message |
+| `list_my_trips` | `planning_service.list_trips` | owner-scoped by construction |
+
+Results are trimmed (`_small`, ~1.8 KB) before going back to the model; the
+loop runs at most 3 rounds, then summarizes what actually happened.
+
+### 17.4 Honesty & safety properties
+
+- **No key → no AI**: `/chat/ai` returns a 422 naming `GEMINI_API_KEY`; the UI
+  shows the real reason and **auto-falls back to classic Vira** (verified live).
+- Provider failure/rate-limit → honest "couldn't answer, try again" — never a
+  fabricated reply.
+- Rate limit: 10 messages/min/user (sliding window; `AI_CHAT_RATE_LIMIT_PER_MIN`).
+- Input bounds: message ≤2000 chars; history ≤8 turns, each text ≤1000 chars.
+- AI turns are visually badged "β Vira AI (beta)" (amber ring) so demo viewers
+  always know which engine answered.
+- Data sent to Google: grounding context + conversation only — no credentials,
+  no payment data, no private provider contacts.
+
+### 17.5 Enabling the beta (user step)
+
+1. Get a free key: <https://aistudio.google.com/apikey>
+2. Put it in `apps/api/.env` → `GEMINI_API_KEY=...` (model: `GEMINI_MODEL=gemini-2.0-flash`)
+3. Restart the API. The chat header's **"Try Vira AI β"** button becomes fully
+   functional; without the key everything degrades honestly as above.
+
+### 17.6 Live-key configuration notes (verified against the real API, 2026-09-20)
+
+- The key lives in `apps/api/.env` as **`VIRAM_GEMINI_API_KEY`** (the `VIRAM_`
+  prefix is mandatory — all settings read `VIRAM_<NAME>`; a bare
+  `GEMINI_API_KEY` is silently ignored).
+- **Model choice matters on the free tier** (all verified live):
+  - `gemini-2.0-flash` — RETIRED (404).
+  - `gemini-3.6-flash` — works, but free tier is ~20 requests/day → 429s fast.
+  - `gemini-3.1-flash-lite-preview` — **default**: function calling verified,
+    separate larger quota.
+- 3.6+ models are "thinking" models: thought tokens share `maxOutputTokens`
+  and truncated answers mid-sentence. The engine sends
+  `thinkingConfig: {thinkingBudget: 0}` — chat grounding needs no deliberation.
+- Free-tier 503/429 blips: one 1.5 s retry inside the engine, then an honest
+  failure message (never a fabricated reply).
+- **Commit rule (bug found in live testing):** tool side-effects are flushed
+  during the request; the router commits after a successful turn, otherwise
+  the bot would claim a trip was saved while the DB rolled it back.
+- **Date sanity (bug found in live testing):** the model proposed past dates;
+  `suggest_trip` now rejects `start_date < today` or > 1 year ahead.
+- Mood/budget label aliasing: the model emits "food, culture"/"moderate";
+  the tool maps aliases onto canonical enum keys before validation.

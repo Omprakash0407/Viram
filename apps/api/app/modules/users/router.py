@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.models.user import User
+from app.models.user import TravellerProfile, User
 from app.modules.users import schemas, service
 from app.modules.users.deps import get_current_user
 
@@ -57,9 +57,11 @@ async def logout(
     await db.commit()
 
 
-def _auth_response(user: User, tokens: dict) -> schemas.AuthResponse:
+def _auth_response(user: User, tokens: dict, avatar_url: str | None = None) -> schemas.AuthResponse:
+    out = schemas.UserOut.model_validate(user)
+    out.avatar_url = avatar_url
     return schemas.AuthResponse(
-        user=schemas.UserOut.model_validate(user),
+        user=out,
         tokens=schemas.TokensResponse(
             access_token=tokens["access_token"],
             refresh_token=tokens["refresh_token"],
@@ -68,8 +70,14 @@ def _auth_response(user: User, tokens: dict) -> schemas.AuthResponse:
 
 
 @users_router.get("/me", response_model=schemas.UserOut)
-async def me(current_user: User = Depends(get_current_user)) -> User:
-    return current_user
+async def me(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> schemas.UserOut:
+    out = schemas.UserOut.model_validate(current_user)
+    profile = await db.get(TravellerProfile, current_user.id)
+    out.avatar_url = profile.avatar_url if profile else None
+    return out
 
 
 @users_router.get("/me/profile", response_model=schemas.ProfileOut)

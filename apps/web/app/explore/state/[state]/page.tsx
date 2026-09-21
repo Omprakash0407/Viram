@@ -64,7 +64,6 @@ export default async function ExploreStatePage({
         <ExploreBrowser
           cities={cities}
           places={places}
-          selectedCitySlug={null}
           stateName={state.name}
           stateSlug={state.slug}
         />

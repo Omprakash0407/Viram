@@ -2,7 +2,7 @@
 
 # Import every model module so all relationships resolve regardless of which
 # entrypoint (app, seed scripts, alembic) imports first.
-from app.models import commerce, geo, planning, user  # noqa: F401  (registry)
+from app.models import commerce, geo, intelligence, planning, providers, reviews, user  # noqa: F401  (registry)
 from app.models.commerce import (
     AdminAuditLog,
     GuideAvailability,
@@ -15,6 +15,15 @@ from app.models.commerce import (
     Refund,
     RoomType,
 )
+from app.models.intelligence import (
+    CommunitySuggestion,
+    EmergencyContact,
+    EmergencyFacility,
+    RouteSnapshot,
+    WeatherSnapshot,
+)
+from app.models.providers import BusinessProfile, IdentityVerification
+from app.models.reviews import PlaceReview
 from app.models.user import AccountRole
 from app.models.user import AccountStatus
 from app.models.user import TravellerProfile
@@ -24,8 +33,13 @@ from app.models.user import UserSession
 
 __all__ = [
     "AccountRole",
+    "BusinessProfile",
+    "IdentityVerification",
     "AccountStatus",
     "AdminAuditLog",
+    "CommunitySuggestion",
+    "EmergencyContact",
+    "EmergencyFacility",
     "GuideAvailability",
     "GuideBooking",
     "GuideProfile",
@@ -33,10 +47,13 @@ __all__ = [
     "HotelBooking",
     "Payment",
     "PaymentWebhookEvent",
+    "PlaceReview",
     "Refund",
     "RoomType",
+    "RouteSnapshot",
     "TravellerProfile",
     "User",
     "UserPreference",
     "UserSession",
+    "WeatherSnapshot",
 ]

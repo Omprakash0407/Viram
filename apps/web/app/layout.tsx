@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import ChatAssistant from "./components/ChatAssistant";
 import { SessionProviderBridge } from "./components/SessionProviderBridge";
 
 const fraunces = Fraunces({
@@ -29,7 +30,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${fraunces.variable} ${jakarta.variable} antialiased`}>
-        <SessionProviderBridge>{children}</SessionProviderBridge>
+        <SessionProviderBridge>
+          {children}
+          <ChatAssistant />
+        </SessionProviderBridge>
       </body>
     </html>
   );

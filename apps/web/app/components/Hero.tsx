@@ -1,4 +1,4 @@
-import { MapPin, Compass, ArrowRight, MessageCircle } from "lucide-react";
+import { MapPin, Compass, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 interface HeroProps {
@@ -75,17 +75,5 @@ export default function Hero({ image }: HeroProps) {
         Rishikesh, Uttarakhand
       </div>
     </section>
-  );
-}
-
-export function ChatBubble() {
-  return (
-    <button
-      type="button"
-      aria-label="Chat with us"
-      className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-forest text-white shadow-xl transition-transform hover:scale-105"
-    >
-      <MessageCircle className="h-6 w-6" />
-    </button>
   );
 }

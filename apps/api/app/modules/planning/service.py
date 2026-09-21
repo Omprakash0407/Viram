@@ -49,6 +49,27 @@ async def _trip_or_404(db: AsyncSession, trip_id: uuid.UUID, user: User) -> Trip
     return trip
 
 
+async def _trip_for_read(
+    db: AsyncSession, trip_id: uuid.UUID, user: User
+) -> tuple[Trip, str]:
+    """Read access = trip head OR accepted companion (travelling together).
+
+    Mutations keep using _trip_or_404 — companions are read-only viewers.
+    """
+    from app.modules.planning import companions_service
+
+    trip = await db.get(Trip, trip_id)
+    if trip is None:
+        raise NotFoundError("Trip not found.")
+    if trip.user_id == user.id:
+        return trip, "HEAD"
+    if await companions_service.is_active_companion(
+        db, trip_id=trip_id, user_id=user.id
+    ):
+        return trip, "COMPANION"
+    raise PermissionDeniedError("This trip belongs to another traveller.")
+
+
 async def create_trip(
     db: AsyncSession,
     *,
@@ -236,8 +257,10 @@ async def generate_itinerary(
 
 
 async def get_trip_detail(db: AsyncSession, *, user: User, trip_id: uuid.UUID) -> dict:
-    """Trip + itinerary + days + items + place names, owner-scoped (mock step 6)."""
-    trip = await _trip_or_404(db, trip_id, user)
+    """Trip + itinerary, readable by the head or an accepted companion
+    (travelling together). Bookings/payments are served by commerce and stay
+    owner-only regardless."""
+    trip, viewer_role = await _trip_for_read(db, trip_id, user)
     city = await db.get(City, trip.city_id)
 
     itinerary = await db.scalar(select(Itinerary).where(Itinerary.trip_id == trip.id))
@@ -292,6 +315,7 @@ async def get_trip_detail(db: AsyncSession, *, user: User, trip_id: uuid.UUID) -
     return {
         "id": str(trip.id),
         "status": trip.status,
+        "viewer_role": viewer_role,
         "city": {"id": str(city.id), "name": city.name} if city else None,
         "starts_on": trip.starts_on.isoformat(),
         "ends_on": trip.ends_on.isoformat(),
@@ -334,6 +358,41 @@ async def add_custom_item(
     db.add(item)
     await db.flush()
     return item
+
+
+async def extend_trip(
+    db: AsyncSession, *, user: User, trip_id: uuid.UUID, days: int
+) -> Trip:
+    """Extend the trip by N days (chat-driven edits). Keeps the active
+    itinerary in sync by appending the new day rows; existing items and any
+    bookings are untouched (design rule 13)."""
+    trip = await _trip_or_404(db, trip_id, user)
+    if days < 1 or days > 30:
+        raise ValidationError("Days to add must be between 1 and 30.")
+    itinerary = await db.scalar(select(Itinerary).where(Itinerary.trip_id == trip.id))
+    max_day: int | None = None
+    if itinerary is not None:
+        max_day = await db.scalar(
+            select(func.max(ItineraryDay.day_number)).where(
+                ItineraryDay.itinerary_id == itinerary.id
+            )
+        )
+    old_end = trip.ends_on
+    trip.ends_on = old_end + timedelta(days=days)
+    snapshot = dict(trip.preferences_snapshot or {})
+    snapshot["days"] = (trip.ends_on - trip.starts_on).days + 1
+    trip.preferences_snapshot = snapshot
+    if itinerary is not None and max_day is not None:
+        for i in range(1, days + 1):
+            db.add(
+                ItineraryDay(
+                    itinerary_id=itinerary.id,
+                    day_number=max_day + i,
+                    date=old_end + timedelta(days=i),
+                )
+            )
+    await db.flush()
+    return trip
 
 
 async def remove_item(

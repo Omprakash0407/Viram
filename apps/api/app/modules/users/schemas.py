@@ -52,12 +52,15 @@ class UserOut(BaseModel):
     display_name: str
     account_role: str
     status: str
+    avatar_url: str | None = None
     created_at: datetime
 
 
 class ProfileUpdateRequest(BaseModel):
     full_name: str | None = Field(default=None, min_length=1, max_length=120)
-    avatar_url: str | None = Field(default=None, max_length=2048)
+    # Data-URL avatars are ~64 KB; the semantic size gate lives in
+    # users.avatar.validate_avatar_url — this only bounds the request body.
+    avatar_url: str | None = Field(default=None, max_length=100_000)
     phone: str | None = Field(default=None, max_length=20)
     bio: str | None = Field(default=None, max_length=2000)
 

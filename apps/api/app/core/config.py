@@ -41,6 +41,19 @@ class Settings(BaseSettings):
     # fast without its own credentials (design doc §18).
     MOCK_WEBHOOK_SECRET: str = "dev-only-mock-webhook-secret"
 
+    # --- AI chat (Vira AI, BETA) ---
+    # Empty key = the /chat/ai endpoint responds with an honest "not configured"
+    # 503; it never fakes AI output. Key is a Google Gemini (AI Studio) key.
+    GEMINI_API_KEY: str = ""
+    # Free-tier model notes (v1beta API, verified against the live API):
+    # - gemini-2.0-flash: RETIRED (404) — do not use.
+    # - gemini-3.6-flash: works (incl. function calling) but a tiny 20-req/day
+    #   free quota — hits 429 within minutes of testing.
+    # - gemini-3.1-flash-lite-preview: function calling verified, separate and
+    #   larger free quota — the practical default for the beta.
+    GEMINI_MODEL: str = "gemini-3.1-flash-lite-preview"
+    AI_CHAT_RATE_LIMIT_PER_MIN: int = 10
+
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
     def _parse_cors(cls, v: object) -> object:

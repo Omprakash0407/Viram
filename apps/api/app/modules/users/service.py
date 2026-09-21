@@ -118,6 +118,10 @@ async def update_profile(db: AsyncSession, *, user_id: uuid.UUID, data: dict):
     profile = await db.get(TravellerProfile, user_id)
     if profile is None:
         raise NotFoundError404("Profile not found.")
+    if "avatar_url" in data:
+        from app.modules.users.avatar import validate_avatar_url
+
+        data["avatar_url"] = validate_avatar_url(data["avatar_url"])
     for field, value in data.items():
         setattr(profile, field, value)
     await db.flush()

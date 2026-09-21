@@ -74,8 +74,7 @@ export default async function ExploreCityPage({
 
         <ExploreBrowser
           cities={cities}
-          places={places}
-          selectedCitySlug={city.slug}
+          places={places.filter((p) => p.city_id === city.id)}
           stateName={state.name}
           stateSlug={state.slug}
         />

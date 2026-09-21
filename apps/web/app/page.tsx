@@ -4,7 +4,6 @@ import Destinations from "./components/Destinations";
 import Banners from "./components/Banners";
 import WhyViram from "./components/WhyViram";
 import Footer from "./components/Footer";
-import { ChatBubble } from "./components/Hero";
 
 export default function Home() {
   return (
@@ -17,7 +16,6 @@ export default function Home() {
         <WhyViram />
       </main>
       <Footer />
-      <ChatBubble />
     </div>
   );
 }

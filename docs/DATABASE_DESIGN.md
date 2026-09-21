@@ -1075,3 +1075,56 @@ The legacy file remains as a migration-history artefact under `legacy/` once the
 > **Database implementation must NOT begin until this finalized design is reviewed and approved.**
 
 The next step is team review of this document (Manaswi → Om for technical soundness, Sonal for the security/visibility model, Bhagyashree for testability). After explicit approval, implementation proceeds as PostgreSQL + SQLAlchemy + Alembic per the project plan — and not before.
+
+## 29. Implementation addendum — avatars and travelling-together companions (Phase 8a)
+
+Added after design approval, following the same rules as the rest of this document.
+
+### 29.1 Profile picture (avatar)
+
+`traveller_profiles.avatar_url` (already in §1.3) now holds either:
+
+- an `https://` image URL, or
+- a self-contained image **data URL** (PNG/JPEG/WebP) produced by client-side
+  downscaling to a 128×128 square (~10–30 KB).
+
+No binary blobs are stored in the database and no object storage is required
+for the MVP. Validation lives in `app/modules/users/avatar.py`: https-only
+remote URLs, image-only data URLs, ≤ 64 000 base64 chars. `javascript:` and
+`http://` URLs are rejected. The avatar is surfaced on `GET /users/me` so the
+header can render it; it is a **public-by-design** attribute of the traveller,
+shown to trip companions and providers.
+
+### 29.2 Trip companions ("travelling together")
+
+```
+trip_companions
+  id                uuid PK DEFAULT gen_random_uuid()
+  trip_id           uuid NOT NULL FK -> trips(id) ON DELETE CASCADE
+  invited_by        uuid NOT NULL FK -> users(id) ON DELETE CASCADE
+  companion_user_id uuid NOT NULL FK -> users(id) ON DELETE CASCADE
+  role              text NOT NULL DEFAULT 'MEMBER'  CHECK (role IN ('HEAD','MEMBER'))
+  status            text NOT NULL DEFAULT 'INVITED' CHECK (status IN ('INVITED','ACTIVE','DECLINED','REMOVED'))
+  invited_at        timestamptz NOT NULL DEFAULT now()
+  responded_at      timestamptz NULL
+  UNIQUE (trip_id, companion_user_id)
+  INDEX ix_trip_companions_companion (companion_user_id, status)
+  INDEX ix_trip_companions_trip (trip_id)
+```
+
+Semantics:
+
+- The **trip head** is `trips.user_id`. Only the head can invite or remove.
+- Invitation lifecycle: `INVITED → ACTIVE | DECLINED`; removal sets `REMOVED`.
+  A `DECLINED`/`REMOVED` row is re-invited **in place** (status back to
+  `INVITED`), preserving one row per (trip, companion) pair.
+- **Access rule (extends §24 without adding a visibility level):** an accepted
+  companion may READ the trip's itinerary (`GET /trips/{id}` returns
+  `viewer_role: "COMPANION"`); every mutation endpoint keeps strict
+  owner-only checks, and bookings/payments (served by the commerce module)
+  remain `OWNER_ONLY`. Sharing is an explicit, revocable grant — removal
+  immediately revokes read access.
+- Account-enumeration guard: inviting an email with no VIRĀM account returns
+  the same validation error class without revealing whether an account
+  exists; companion shapes never include the companion's email.
+- Migration: `0008_avatars_companions` (rev 0008).

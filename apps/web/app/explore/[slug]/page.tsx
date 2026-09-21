@@ -22,6 +22,7 @@ import { serverApi, type PlaceDetail } from "@/lib/api";
 import Header from "@/app/components/Header";
 import Footer from "@/app/components/Footer";
 import PlaceImage from "../PlaceImage";
+import ReviewsSection from "./ReviewsSection";
 
 /**
  * ISR: prerendered/cached and revalidated every 60s — place details change
@@ -272,40 +273,8 @@ export default async function PlaceDetailPage({
       {/* ---------- Reviews + Nearby ---------- */}
       <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-          <div id="reviews" className="scroll-mt-24 rounded-2xl bg-white p-8 shadow-md ring-1 ring-ink/5">
-            <div className="flex items-center justify-between">
-              <h2 className="flex items-center gap-2 font-display text-2xl font-semibold text-ink">
-                <Star className="h-5 w-5 fill-amber-500 text-amber-500" aria-hidden="true" />
-                Traveller Reviews
-              </h2>
-            </div>
-            <p className="mt-2 text-sm text-ink/60">
-              {place.rating_avg
-                ? `${place.rating_avg.toFixed(1)} / 5 · editorial rating`
-                : "No rating yet"}{" "}
-              · live reviews arrive with the reviews phase
-            </p>
-            {d?.sample_reviews?.length ? (
-              <blockquote className="mt-5 rounded-xl bg-cream p-5">
-                <p className="text-sm font-semibold text-ink">
-                  {d.sample_reviews[0].author}
-                  <span className="ml-2 font-normal text-ink/50">
-                    Visited in {d.sample_reviews[0].visited}
-                  </span>
-                </p>
-                <p className="mt-1 flex gap-0.5" aria-label={`${d.sample_reviews[0].rating} out of 5 stars`}>
-                  {Array.from({ length: d.sample_reviews[0].rating }).map((_, i) => (
-                    <Star key={i} className="h-3.5 w-3.5 fill-amber-500 text-amber-500" aria-hidden="true" />
-                  ))}
-                </p>
-                <p className="mt-3 text-sm leading-relaxed text-ink/80">
-                  &ldquo;{d.sample_reviews[0].text}&rdquo;
-                </p>
-                <footer className="mt-3 text-[11px] uppercase tracking-wide text-ink/40">
-                  Sample review · layout preview
-                </footer>
-              </blockquote>
-            ) : null}
+          <div className="rounded-2xl bg-white p-8 shadow-md ring-1 ring-ink/5">
+            <ReviewsSection placeSlug={place.slug} />
           </div>
 
           <div id="nearby" className="scroll-mt-24 rounded-2xl bg-white p-8 shadow-md ring-1 ring-ink/5">
