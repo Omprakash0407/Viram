@@ -21,6 +21,7 @@ from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
 from app.models.commerce import GuideAvailability, GuideProfile, Hotel, RoomType
+from app.models.providers import BusinessProfile
 from app.models.user import User
 
 # (slug, name, description, amenities, public_address, phone)
@@ -101,6 +102,78 @@ GUIDES: list[tuple] = [
 ]
 
 AVAIL_DAYS = 60  # guides offer every date for the next 60 days except markers below
+
+# Local Partners demo data (§17): verified Odisha businesses for the partners
+# wall and directory. (email, business name, category, description, services,
+# public address, phone, city slug, optional place slug)
+BUSINESSES: list[tuple] = [
+    (
+        "business.pattachitra@viramdemo.com",
+        "Raghurajpur Pattachitra Studio",
+        "ARTISAN",
+        "Family workshop in the heritage village of Raghurajpur — every house here has a living Pattachitra artist. Buy directly from the painter who made it.",
+        ["Pattachitra paintings", "palm-leaf engravings", "artisan visits"],
+        "Raghurajpur Heritage Village, Puri district",
+        "+91 6752 000 010",
+        "puri",
+        "raghurajpur-heritage-village",
+    ),
+    (
+        "business.pipli-applique@viramdemo.com",
+        "Pipli Applied Art Collective",
+        "HANDICRAFT",
+        "Cooperative of appliqué artisans from Pipli, the village whose canopies and lamp shades travel to festivals across India.",
+        ["appliqué wall hangings", "lamp shades", "custom orders"],
+        "Pipli Bazaar, NH-16, between Bhubaneswar and Puri",
+        "+91 674 000 011",
+        "bhubaneswar",
+        None,
+    ),
+    (
+        "business.niladri-cafe@viramdemo.com",
+        "Niladri Coffee House",
+        "CAFE",
+        "Old-school Puri coffee house a short walk from the temple lane — filter coffee, cutlets and a quiet corner.",
+        ["filter coffee", "snacks", "breakfast"],
+        "Grand Road, Puri",
+        "+91 6752 000 012",
+        "puri",
+        None,
+    ),
+    (
+        "business.dalma-kitchen@viramdemo.com",
+        "Dalma Kitchen",
+        "RESTAURANT",
+        "Home-style Odia food: dalma, machha besara, pakhal bhata — cooked the way Bhubaneswar families eat.",
+        ["Odia thali", "vegetarian", "family seating"],
+        "Saheed Nagar, Bhubaneswar",
+        "+91 674 000 013",
+        "bhubaneswar",
+        None,
+    ),
+    (
+        "business.satapada-boats@viramdemo.com",
+        "Satapada Boat Cooperative",
+        "TOUR",
+        "Licensed boatmen's cooperative on the Satapada side of Chilika — dolphin-point trips and backwater island routes, far from the crowds.",
+        ["dolphin-point boating", "island hopping", "birding trips"],
+        "Satapada Jetty, Chilika",
+        "+91 6752 000 014",
+        "chilika-satapada",
+        "chilika-lake-satapada-dolphin-and-bird-watching",
+    ),
+    (
+        "business.daringbadi-stay@viramdemo.com",
+        "Daringbadi Pine Homestay",
+        "HOMESTAY",
+        "Family homestay among the pine groves of the Kashmir of Odisha — hill-view rooms, bonfires and local meals.",
+        ["hill-view rooms", "bonfire evenings", "home-cooked meals"],
+        "Daringbadi, Kandhamal district",
+        "+91 6846 000 015",
+        "daringbadi",
+        None,
+    ),
+]
 
 
 async def upsert_hotels() -> None:
@@ -235,9 +308,72 @@ async def upsert_guides() -> None:
         await db.commit()
 
 
+async def upsert_businesses() -> None:
+    """Seed verified Local Partners (§17). Owners are dedicated demo users; the
+    approved status stands in for the admin verification flow (same as guides)."""
+    from app.models.geo import City, Place, State
+
+    async with AsyncSessionLocal() as db:
+        state = await db.scalar(select(State))
+        cities = {c.slug: c for c in (await db.scalars(select(City))).all()}
+        places = {p.slug: p for p in (await db.scalars(select(Place))).all()}
+        if state is None or not cities:
+            raise SystemExit("Run scripts.seed_odisha first (states/cities missing).")
+
+        for (email, name, category, desc, services, address, phone, city_slug,
+             place_slug) in BUSINESSES:
+            user = await db.scalar(select(User).where(User.email == email))
+            if user is None:
+                from app.core.security import hash_password
+
+                user = User(
+                    email=email,
+                    password_hash=hash_password("BusinessDemo#2026"),
+                    display_name=name,
+                    account_role="USER",
+                    status="ACTIVE",
+                )
+                db.add(user)
+                await db.flush()
+                print(f"+ user {email}")
+
+            biz = await db.scalar(
+                select(BusinessProfile).where(
+                    BusinessProfile.user_id == user.id, BusinessProfile.name == name
+                )
+            )
+            if biz is None:
+                biz = BusinessProfile(
+                    user_id=user.id,
+                    name=name,
+                    description=desc,
+                    category=category,
+                    state_id=state.id,
+                    city_id=cities[city_slug].id,
+                    place_id=places[place_slug].id if place_slug else None,
+                    services=services,
+                    public_phone=phone,
+                    public_address=address,
+                    status="APPROVED",
+                    visibility="PUBLIC",
+                )
+                db.add(biz)
+                await db.flush()
+                print(f"+ business {name}")
+            else:
+                biz.description = desc
+                biz.services = services
+                biz.public_address = address
+                biz.status = "APPROVED"
+                biz.visibility = "PUBLIC"
+                print(f"~ business {name} (updated)")
+        await db.commit()
+
+
 async def main() -> None:
     await upsert_hotels()
     await upsert_guides()
+    await upsert_businesses()
     print("commerce seed complete")
 
 

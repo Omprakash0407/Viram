@@ -1,9 +1,23 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MapPin, Phone, Mail, ArrowLeft, BadgeCheck } from "lucide-react";
-import { geoApi, providersApi } from "@/lib/api";
+import { serverApi, type BusinessPublicRow } from "@/lib/api";
 
-export const dynamic = "force-dynamic";
+/**
+ * ISR (60s): partner profiles change only via seeds/admin. Public data only —
+ * the endpoint serves the public shape (§24), never private contacts.
+ */
+export const revalidate = 60;
+
+/** Export mode: prerender every approved partner at build time. */
+export async function generateStaticParams() {
+  if (!process.env.STATIC_EXPORT_BASE_PATH) return [];
+  const { serverApi } = await import("@/lib/api");
+  const { items } = await serverApi<{ items: BusinessPublicRow[] }>(
+    "/partners",
+  ).catch(() => ({ items: [] as BusinessPublicRow[] }));
+  return items.map((b) => ({ id: b.id }));
+}
 
 const CATEGORY_LABEL: Record<string, string> = {
   CAFE: "Café",
@@ -23,10 +37,16 @@ export default async function PartnerDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const business = await providersApi.partner(id).catch(() => null);
-  if (!business) notFound();
+  const business = await serverApi<BusinessPublicRow>(
+    `/partners/${encodeURIComponent(id)}`,
+  ).catch((err: { status?: number }) => {
+    if (err.status === 404) notFound();
+    throw err;
+  });
 
-  const cityList = await geoApi.cities().catch(() => ({ items: [] }));
+  const cityList = await serverApi<{ items: Array<{ id: string; name: string }> }>(
+    "/geo/cities",
+  ).catch(() => ({ items: [] }));
   const city = cityList.items.find((c) => c.id === business.city_id);
 
   return (
